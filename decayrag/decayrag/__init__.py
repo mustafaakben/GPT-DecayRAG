@@ -9,7 +9,13 @@ from .ingest import (
     upsert_embeddings,
     batch_ingest,
 )
-from .retrieval import retrieve
+from .retrieval import (
+    embed_query,
+    compute_chunk_similarities,
+    blend_scores,
+    top_k_chunks,
+    retrieve,
+)
 
 __all__ = [
     "parse_document",
@@ -17,6 +23,10 @@ __all__ = [
     "embed_chunks",
     "upsert_embeddings",
     "batch_ingest",
+    "embed_query",
+    "compute_chunk_similarities",
+    "blend_scores",
+    "top_k_chunks",
     "retrieve",
 ]
 
