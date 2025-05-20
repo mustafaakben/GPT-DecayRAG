@@ -9,7 +9,12 @@ from typing import List
 import faiss
 import numpy as np
 
-from .pooling import apply_neighbor_decay_scores
+from .pooling import (
+    apply_neighbor_decay_scores,
+    apply_neighbor_decay_embeddings,
+    compute_global_embedding,
+    blend_embeddings,
+)
 
 __all__ = [
     "embed_query",
@@ -83,6 +88,7 @@ def retrieve(
     top_k: int = 5,
     decay: bool = True,
     blend: bool = True,
+    embedding_blend: bool = False,
 ) -> List[dict]:
     """Search *index_path* for chunks relevant to *query*."""
     index = _load_index(index_path)
@@ -99,14 +105,39 @@ def retrieve(
         raise ValueError("Index type does not support reconstruct")
 
     qvec = embed_query(query, model)
-    raw_scores = compute_chunk_similarities(qvec, embeds)
 
-    final_scores = raw_scores
-    if decay:
-        decayed = apply_neighbor_decay_scores(raw_scores)
-        final_scores = decayed
-        if blend:
-            final_scores = blend_scores(raw_scores, decayed)
+    # Embedding-level pathway
+    if embedding_blend:
+        final_embeds = np.empty_like(embeds)
+
+        # group by document id
+        doc_to_indices: dict[str, List[int]] = {}
+        for idx, m in enumerate(meta):
+            doc_to_indices.setdefault(m.get("doc_id", ""), []).append(idx)
+
+        for doc_id, indices in doc_to_indices.items():
+            doc_vectors = embeds[indices]
+            decayed = (
+                apply_neighbor_decay_embeddings(doc_vectors)
+                if decay
+                else doc_vectors
+            )
+            doc_embed = compute_global_embedding(doc_vectors)
+            if blend:
+                blended = blend_embeddings(doc_vectors, decayed, doc_embed)
+            else:
+                blended = decayed
+            final_embeds[indices] = blended
+
+        final_scores = compute_chunk_similarities(qvec, final_embeds)
+    else:
+        raw_scores = compute_chunk_similarities(qvec, embeds)
+        final_scores = raw_scores
+        if decay:
+            decayed = apply_neighbor_decay_scores(raw_scores)
+            final_scores = decayed
+            if blend:
+                final_scores = blend_scores(raw_scores, decayed)
 
     top_idx = top_k_chunks(final_scores, top_k)
     results = []
