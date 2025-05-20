@@ -97,8 +97,9 @@ decayrag/
 pip install decayrag  # TODO: publish
 
 # python ≥ 3.9
-python -m decayrag.quickstart --input docs/example.pdf --query "When was the first self‑driving demo?"
+python examples/quickstart.py --input docs/example.pdf --query "When was the first self‑driving demo?"
 ```
+Set the `OPENAI_API_KEY` environment variable when using OpenAI embeddings.
 
 ---
 
