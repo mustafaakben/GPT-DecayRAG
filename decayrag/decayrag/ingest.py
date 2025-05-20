@@ -124,19 +124,16 @@ def chunk_nodes(nodes: List[dict], max_tokens: int, overlap: int = 0) -> List[di
 # ---------------------------------------------------------------------------
 
 def _api_embed(texts: List[str], model_name: str) -> np.ndarray:
-    import requests
+    """Embed *texts* via the OpenAI API using *model_name*."""
+    import openai
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY not set")
 
-    url = "https://api.openai.com/v1/embeddings"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {"model": model_name, "input": texts}
-    resp = requests.post(url, headers=headers, json=payload, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()["data"]
-    vectors = [d["embedding"] for d in data]
+    client = openai.OpenAI(api_key=api_key)
+    response = client.embeddings.create(model=model_name, input=texts)
+    vectors = [item.embedding for item in response.data]
     return np.asarray(vectors, dtype=np.float32)
 
 
