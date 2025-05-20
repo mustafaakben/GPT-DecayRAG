@@ -9,6 +9,7 @@ from .ingest import (
     upsert_embeddings,
     batch_ingest,
 )
+from .retrieval import retrieve
 
 __all__ = [
     "parse_document",
@@ -16,5 +17,6 @@ __all__ = [
     "embed_chunks",
     "upsert_embeddings",
     "batch_ingest",
+    "retrieve",
 ]
 
