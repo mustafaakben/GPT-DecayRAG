@@ -111,13 +111,25 @@ python -m decayrag.quickstart --input docs/example.pdf --query "When was the fir
 
 ---
 
-## 8 License
+## 8 Running Tests
+
+Install the dependencies listed in `requirements.txt` and run `pytest` from the
+project root:
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+---
+
+## 9 License
 
 DecayRAG will be released under the **MIT License**. The `LICENSE` file is not yet included but will be added later.
 
 ---
 
-## 9 Citation
+## 10 Citation
 
 ```bibtex
 @misc{decayrag2025,
@@ -130,7 +142,7 @@ DecayRAG will be released under the **MIT License**. The `LICENSE` file is not y
 
 ---
 
-## 10 Contributing & Support
+## 11 Contributing & Support
 
 Open an issue or pull request on GitHub. Join the discussion tab for questions and roadmap chatter.
 
