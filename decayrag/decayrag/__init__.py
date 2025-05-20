@@ -1,5 +1,20 @@
-"""
-DecayRAG - A library for document ingestion and retrieval with decay-based relevance.
-"""
+"""DecayRAG - document ingestion and retrieval utilities."""
 
-__version__ = "0.1.0" 
+__version__ = "0.1.0"
+
+from .ingest import (
+    parse_document,
+    chunk_nodes,
+    embed_chunks,
+    upsert_embeddings,
+    batch_ingest,
+)
+
+__all__ = [
+    "parse_document",
+    "chunk_nodes",
+    "embed_chunks",
+    "upsert_embeddings",
+    "batch_ingest",
+]
+
