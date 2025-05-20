@@ -93,8 +93,9 @@ decayrag/
 ## 6 Quick Start
 
 ```bash
-# install
-pip install decayrag  # TODO: publish
+# install from source (PyPI package coming soon)
+git clone https://github.com/mustafaakben/DecayRAG.git
+pip install -e ./DecayRAG
 
 # python ≥ 3.9
 python -m decayrag.quickstart --input docs/example.pdf --query "When was the first self‑driving demo?"
