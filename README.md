@@ -86,7 +86,7 @@ decayrag/
 | **4** | Eval harness, baselines, sweeps                                           | ⬜️     |
 | **5** | Docs, packaging, CI, license                                              | ⬜️     |
 
-*(See `docs/roadmap.md` for the live Kanban.)*
+*(Live Kanban coming soon.)*
 
 ---
 
