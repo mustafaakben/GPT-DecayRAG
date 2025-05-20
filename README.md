@@ -113,7 +113,7 @@ python -m decayrag.quickstart --input docs/example.pdf --query "When was the fir
 
 ## 8 License
 
-DecayRAG will be released under the **MIT License** (see `LICENSE`).
+DecayRAG will be released under the **MIT License**. The `LICENSE` file is not yet included but will be added later.
 
 ---
 
