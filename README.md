@@ -81,7 +81,7 @@ decayrag/
 | ----- | ------------------------------------------------------------------------- | ------ |
 | **0** | Vector‑store config (`config.yaml`)                                       | ⬜️     |
 | **1** | `parse_document`, `chunk_nodes`, `embed_chunks`, `upsert_embeddings`      | ✅     |
-| **2** | `embed_query`, `compute_chunk_similarities`, `top_k_chunks`, `retrieve()` | ⬜️     |
+| **2** | `embed_query`, `compute_chunk_similarities`, `top_k_chunks`, `retrieve()` | ✅     |
 | **3** | `assemble_context`, `generate_answer`                                     | ⬜️     |
 | **4** | Eval harness, baselines, sweeps                                           | ⬜️     |
 | **5** | Docs, packaging, CI, license                                              | ⬜️     |
@@ -159,13 +159,13 @@ Open an issue or pull request on GitHub. Join the discussion tab for questions a
 |                                 | **1.4 Document-level pooling** – already built                                                       | `compute_global_embedding(...)`                       | ✅                     |
 |                                 | **1.5 TF-IDF weight calculator** – already built                                                     | `compute_tfidf_weights(...)`                          | ✅                     |
 |                                 | **1.6 Vector store writer** – persist `{doc_id, chunk_id, text, meta, embedding}`                    | `upsert_embeddings(store, records)`                   | ✅                     |
-| **2  Query-time pipeline**      | **2.1 Query embedding**                                                                              | `embed_query(text, model_id)`                         | ⬜️                    |
-|                                 | **2.2 Similarity calc** – query vs. chunk vectors                                                    | `compute_chunk_similarities(query_vec, chunk_embeds)` | ⬜️                    |
+| **2  Query-time pipeline**      | **2.1 Query embedding**                                                                              | `embed_query(text, model_id)`                         | ✅                    |
+|                                 | **2.2 Similarity calc** – query vs. chunk vectors                                                    | `compute_chunk_similarities(query_vec, chunk_embeds)` | ✅                    |
 |                                 | **2.3 Neighbour decay (scores &/or embeddings)** – already built                                     | `apply_neighbor_decay_*`                              | ✅                     |
 |                                 | **2.4 Blending layer** – combine chunk, decayed, doc embeddings                                      | `blend_embeddings(...)`                               | ✅                     |
-|                                 | **2.5 Final score builder** – if you choose score-space blending instead                             | `blend_scores(...)`                                   | ⬜️                    |
-|                                 | **2.6 Top-k selector**                                                                               | `top_k_chunks(scores, k)`                             | ⬜️                    |
-|                                 | **2.7 Retrieval wrapper** – orchestrates 2.1 → 2.6                                                   | `retrieve(query, k, settings) → List[Chunk]`          | ⬜️                    |
+|                                 | **2.5 Final score builder** – if you choose score-space blending instead                             | `blend_scores(...)`                                   | ✅                    |
+|                                 | **2.6 Top-k selector**                                                                               | `top_k_chunks(scores, k)`                             | ✅                    |
+|                                 | **2.7 Retrieval wrapper** – orchestrates 2.1 → 2.6                                                   | `retrieve(query, k, settings) → List[Chunk]`          | ✅                    |
 | **3  Post-retrieval**           | **3.1 Context assembly** – stitch neighbouring text, respect hierarchy                               | `assemble_context(chunks, window)`                    | ⬜️                    |
 |                                 | **3.2 Generator call** – feed assembled context to LLM                                               | `generate_answer(context, query)`                     | ⬜️                    |
 | **4  Evaluation & Experiments** | **4.1 Gap-challenge dataset builder**                                                                | `build_gap_set(corpus)`                               | ⬜️                    |
