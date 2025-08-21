@@ -16,8 +16,10 @@ from .pooling import (
     blend_embeddings,
 )
 from . import ingest
+from .ingest import load_config
 
 __all__ = [
+    "load_config",
     "embed_query",
     "compute_chunk_similarities",
     "blend_scores",
