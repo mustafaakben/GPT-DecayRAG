@@ -1,0 +1,4 @@
+index_path: data/index.faiss
+model: text-embedding-3-small
+max_tokens: 200
+overlap: 20

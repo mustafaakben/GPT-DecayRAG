@@ -3,6 +3,7 @@
 __version__ = "0.1.0"
 
 from .ingest import (
+    load_config,
     parse_document,
     chunk_nodes,
     embed_chunks,
@@ -16,8 +17,10 @@ from .retrieval import (
     top_k_chunks,
     retrieve,
 )
+from .post import assemble_context, generate_answer
 
 __all__ = [
+    "load_config",
     "parse_document",
     "chunk_nodes",
     "embed_chunks",
@@ -28,5 +31,7 @@ __all__ = [
     "blend_scores",
     "top_k_chunks",
     "retrieve",
+    "assemble_context",
+    "generate_answer",
 ]
 

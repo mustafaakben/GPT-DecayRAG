@@ -10,17 +10,33 @@ from typing import List
 
 import faiss
 import numpy as np
+import yaml
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from pdfminer.high_level import extract_text
 import tiktoken
 
 __all__ = [
+    "load_config",
     "parse_document",
     "chunk_nodes",
     "embed_chunks",
     "upsert_embeddings",
     "batch_ingest",
 ]
+
+
+def load_config(path: str | None = None) -> dict:
+    """Load a YAML configuration file.
+
+    Parameters
+    ----------
+    path:
+        Optional path to the YAML file. Defaults to ``config.yaml`` in the
+        current working directory.
+    """
+    config_path = Path(path or "config.yaml")
+    with config_path.open("r", encoding="utf-8") as fh:
+        return yaml.safe_load(fh) or {}
 
 # ---------------------------------------------------------------------------
 # 1. Document parsing
@@ -138,20 +154,9 @@ def _api_embed(texts: List[str], model_name: str) -> np.ndarray:
 
 
 def embed_chunks(chunks: List[dict], model_name: str) -> np.ndarray:
-    """Embed chunk texts with a chosen model or sentence-transformer fallback."""
+    """Embed chunk texts using the OpenAI embeddings API."""
     texts = [c["text"] for c in chunks]
-    try:
-        embeds = _api_embed(texts, model_name)
-    except Exception:
-        try:
-            from sentence_transformers import SentenceTransformer
-
-            st_model = SentenceTransformer(model_name)
-            embeds = st_model.encode(texts, convert_to_numpy=True, normalize_embeddings=False)
-        except Exception:
-            rng = np.random.default_rng(0)
-            embeds = rng.standard_normal((len(texts), 384)).astype(np.float32)
-
+    embeds = _api_embed(texts, model_name)
     norms = np.linalg.norm(embeds, axis=1, keepdims=True)
     np.divide(embeds, norms, out=embeds, where=norms != 0)
     return embeds
