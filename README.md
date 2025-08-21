@@ -35,7 +35,22 @@ Large documents must be split into chunks before vector search, but this often b
 
 ## 4 Method in Detail
 
-The details will be added soon.
+DecayRAG processes documents in three phases.
+
+1. **Ingestion** – `parse_document` reads raw files, `chunk_nodes` splits them
+   into token sized pieces and `embed_chunks` calls the OpenAI embeddings API.
+   The resulting vectors and metadata are persisted with `upsert_embeddings`.
+2. **Retrieval** – a query is embedded and scored against stored vectors. The
+   neighbour decay and blending pipeline smooths the representations:
+
+```python
+decayed = apply_neighbor_decay_embeddings(chunk_vectors)
+doc_vec = compute_global_embedding(chunk_vectors)
+final = blend_embeddings(chunk_vectors, decayed, doc_vec)
+```
+
+3. **Post‑retrieval** – top chunks are stitched with `assemble_context` and the
+   assembled text is passed to an LLM via `generate_answer`.
 
 ### 4.1 Decay kernels
 
@@ -97,8 +112,8 @@ decayrag/
 git clone https://github.com/mustafaakben/DecayRAG.git
 pip install -e ./DecayRAG
 
-# python ≥ 3.9
-python examples/quickstart.py --input docs/example.pdf --query "When was the first self‑driving demo?"
+# run ingestion using a YAML config
+python examples/quickstart.py docs/ data/index.faiss --config config.yaml
 ```
 Set the `OPENAI_API_KEY` environment variable when using OpenAI embeddings.
 
@@ -127,7 +142,7 @@ pytest
 
 ## 9 License
 
-DecayRAG will be released under the **MIT License**. The `LICENSE` file is not yet included but will be added later.
+DecayRAG is released under the **MIT License**. See the `LICENSE` file for details.
 
 ---
 

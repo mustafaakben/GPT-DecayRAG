@@ -15,8 +15,11 @@ from .pooling import (
     compute_global_embedding,
     blend_embeddings,
 )
+from . import ingest
+from .ingest import load_config
 
 __all__ = [
+    "load_config",
     "embed_query",
     "compute_chunk_similarities",
     "blend_scores",
@@ -26,25 +29,13 @@ __all__ = [
 
 
 def embed_query(query: str, model_name: str) -> np.ndarray:
-    """Embed a query string using the chosen model or a fallback."""
-    texts = [query]
-    try:
-        from .ingest import _api_embed  # type: ignore
-
-        embeds = _api_embed(texts, model_name)
-    except Exception:
-        try:
-            from sentence_transformers import SentenceTransformer
-
-            st_model = SentenceTransformer(model_name)
-            embeds = st_model.encode(texts, convert_to_numpy=True, normalize_embeddings=False)
-        except Exception:
-            rng = np.random.default_rng(0)
-            embeds = rng.standard_normal((1, 384)).astype(np.float32)
-
-    norms = np.linalg.norm(embeds, axis=1, keepdims=True)
-    np.divide(embeds, norms, out=embeds, where=norms != 0)
-    return embeds[0]
+    """Embed a query string using the OpenAI embeddings API."""
+    embeds = ingest._api_embed([query], model_name)
+    vec = embeds[0]
+    norm = np.linalg.norm(vec)
+    if norm != 0:
+        vec = vec / norm
+    return vec
 
 
 def compute_chunk_similarities(query_vec: np.ndarray, chunk_embeds: np.ndarray) -> np.ndarray:
