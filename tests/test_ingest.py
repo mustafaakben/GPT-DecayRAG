@@ -13,6 +13,7 @@ from decayrag import (
     upsert_embeddings,
     batch_ingest,
 )
+import decayrag.decayrag.ingest as ingest
 
 
 def test_parse_document_txt(tmp_path: Path) -> None:
@@ -32,18 +33,23 @@ def test_parse_document_md(tmp_path: Path) -> None:
     assert nodes[1]["level"] == ["Title", "Section"]
 
 
-def test_chunk_nodes_and_embed(tmp_path: Path) -> None:
+def test_chunk_nodes_and_embed(tmp_path: Path, monkeypatch) -> None:
     nodes = [{"doc_id": "x", "level": [], "text": "word " * 50}]
     chunks = chunk_nodes(nodes, max_tokens=20, overlap=5)
+
+    def fake_api_embed(texts, model_name):
+        return np.ones((len(texts), 3), dtype=np.float32)
+
+    monkeypatch.setattr(ingest, "_api_embed", fake_api_embed)
     assert len(chunks) > 0
     embeds = embed_chunks(chunks, "text-embedding-3-small")
     assert embeds.shape[0] == len(chunks)
-    assert embeds.shape[1] > 0
+    assert embeds.shape[1] == 3
     norms = np.linalg.norm(embeds, axis=1)
     assert np.allclose(norms, 1.0, atol=1e-5)
 
 
-def test_upsert_and_batch_ingest(tmp_path: Path) -> None:
+def test_upsert_and_batch_ingest(tmp_path: Path, monkeypatch) -> None:
     index_path = tmp_path / "index.faiss"
     chunks = [
         {"doc_id": "d", "chunk_id": 0, "text": "hello", "level": [], "position": 0}
@@ -59,6 +65,11 @@ def test_upsert_and_batch_ingest(tmp_path: Path) -> None:
     folder = tmp_path / "docs"
     folder.mkdir()
     (folder / "a.txt").write_text("text")
+
+    def fake_api_embed(texts, model_name):
+        return np.ones((len(texts), 3), dtype=np.float32)
+
+    monkeypatch.setattr(ingest, "_api_embed", fake_api_embed)
     batch_ingest(str(folder), str(index_path), "text-embedding-3-small", 10)
     meta_lines = Path(str(index_path) + ".meta").read_text().strip().splitlines()
     idx = faiss.read_index(str(index_path))
