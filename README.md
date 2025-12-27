@@ -113,7 +113,10 @@ git clone https://github.com/mustafaakben/DecayRAG.git
 pip install -e ./DecayRAG
 
 # run ingestion using a YAML config
-python examples/quickstart.py docs/ data/index.faiss --config config.yaml
+python examples/quickstart.py docs/ --config config.yaml
+
+# override config values via CLI (index path and chunking settings)
+python examples/quickstart.py docs/ data/custom.faiss --config config.yaml --max_tokens 256 --overlap 32
 ```
 Set the `OPENAI_API_KEY` environment variable when using OpenAI embeddings.
 
@@ -122,6 +125,15 @@ To generate answers with configuration-driven settings, use:
 ```bash
 python examples/generate_answer.py "Context text..." "What is this about?" --config config.yaml
 ```
+
+The following optional keys are supported for ingestion:
+
+* `index_path`
+* `model`
+* `max_tokens`
+* `overlap`
+
+CLI arguments override any values set in `config.yaml`.
 
 The following optional keys are supported for generation:
 
