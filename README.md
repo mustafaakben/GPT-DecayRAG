@@ -39,7 +39,8 @@ DecayRAG processes documents in three phases.
 
 1. **Ingestion** – `parse_document` reads raw files, `chunk_nodes` splits them
    into token sized pieces and `embed_chunks` calls the OpenAI embeddings API.
-   The resulting vectors and metadata are persisted with `upsert_embeddings`.
+   The resulting vectors and metadata are persisted with `upsert_embeddings`
+   (FAISS index + `.meta` + `.npy` embedding store).
 2. **Retrieval** – a query is embedded and scored against stored vectors. The
    neighbour decay and blending pipeline smooths the representations:
 
@@ -51,6 +52,11 @@ final = blend_embeddings(chunk_vectors, decayed, doc_vec)
 
 3. **Post‑retrieval** – top chunks are stitched with `assemble_context` and the
    assembled text is passed to an LLM via `generate_answer`.
+
+When FAISS indexes do not support `reconstruct_n`, retrieval falls back to the
+saved `.npy` embeddings for decay/blending. If embeddings are unavailable and
+`embedding_blend=True`, retrieval raises an error; otherwise it performs
+score-only FAISS search without decay/blending.
 
 ### 4.1 Decay kernels
 
