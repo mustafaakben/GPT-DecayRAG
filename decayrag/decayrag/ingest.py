@@ -199,17 +199,82 @@ def chunk_nodes(nodes: List[dict], max_tokens: int, overlap: int = 0) -> List[di
 # 3. Embedding
 # ---------------------------------------------------------------------------
 
-def _api_embed(texts: List[str], model_name: str) -> np.ndarray:
+def _api_embed(
+    texts: List[str],
+    model_name: str,
+    *,
+    batch_size: int | None = None,
+    timeout: float | None = None,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+) -> np.ndarray:
     """Embed *texts* via the OpenAI API using *model_name*."""
+    import time
+
     import openai
+
+    if not texts:
+        return np.empty((0, 0), dtype=np.float32)
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set")
+        raise RuntimeError(
+            "OPENAI_API_KEY not set. Set the environment variable to call the embeddings API."
+        )
 
-    client = openai.OpenAI(api_key=api_key)
-    response = client.embeddings.create(model=model_name, input=texts)
-    vectors = [item.embedding for item in response.data]
+    env_batch_size = os.getenv("OPENAI_EMBED_BATCH_SIZE")
+    resolved_batch_size = (
+        _coerce_int(batch_size, "batch_size")
+        if batch_size is not None
+        else _coerce_int(env_batch_size, "OPENAI_EMBED_BATCH_SIZE")
+        if env_batch_size
+        else len(texts)
+    )
+    if resolved_batch_size is None or resolved_batch_size <= 0:
+        raise ValueError("batch_size must be a positive integer")
+
+    resolved_timeout = timeout
+    if resolved_timeout is None:
+        env_timeout = os.getenv("OPENAI_TIMEOUT")
+        if env_timeout is not None:
+            try:
+                resolved_timeout = float(env_timeout)
+            except ValueError as exc:
+                raise ValueError("OPENAI_TIMEOUT must be a number") from exc
+
+    client = openai.OpenAI(api_key=api_key, timeout=resolved_timeout)
+    transient_errors = tuple(
+        err
+        for err in (
+            getattr(openai, "RateLimitError", None),
+            getattr(openai, "APIConnectionError", None),
+            getattr(openai, "APITimeoutError", None),
+            getattr(openai, "InternalServerError", None),
+            getattr(openai, "APIError", None),
+        )
+        if err is not None
+    )
+
+    vectors: List[List[float]] = []
+    for start in range(0, len(texts), resolved_batch_size):
+        batch = texts[start:start + resolved_batch_size]
+        attempt = 0
+        while True:
+            try:
+                response = client.embeddings.create(model=model_name, input=batch)
+                vectors.extend([item.embedding for item in response.data])
+                break
+            except transient_errors as exc:
+                if attempt >= max_retries:
+                    raise RuntimeError(
+                        "OpenAI embeddings request failed after retries."
+                    ) from exc
+                delay = base_delay * (2 ** attempt)
+                time.sleep(delay)
+                attempt += 1
+            except Exception as exc:
+                raise RuntimeError("OpenAI embeddings request failed.") from exc
+
     return np.asarray(vectors, dtype=np.float32)
 
 
