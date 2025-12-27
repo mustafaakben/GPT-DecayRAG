@@ -168,6 +168,27 @@ pip install -r requirements.txt
 pytest
 ```
 
+### 8.1 Integration tests (OpenAI + Wikipedia)
+
+Integration tests retrieve real Wikipedia extracts and call the OpenAI
+embeddings API. They require:
+
+* `OPENAI_API_KEY` to be set in the environment
+* `RUN_OPENAI_INTEGRATION=1` to opt in to the external calls
+* Network access to `https://en.wikipedia.org`
+
+Run integration tests with:
+
+```bash
+pytest -m integration
+```
+
+### 8.2 Test Results
+
+| Date | Command | Environment | Result | Notes |
+| ---- | ------- | ----------- | ------ | ----- |
+| 2025-12-27 | `pytest` | local | 16 passed, 1 skipped | Integration skipped (RUN_OPENAI_INTEGRATION not set). |
+
 ---
 
 ## 9 Quality Assurance
