@@ -230,6 +230,7 @@ def upsert_embeddings(index_path: str, chunks: List[dict], embeds: np.ndarray) -
     """Store embeddings and metadata into a FAISS index on disk."""
     index_file = Path(index_path)
     meta_file = Path(index_path + ".meta")
+    embed_file = Path(index_path + ".npy")
 
     if index_file.exists():
         index = faiss.read_index(str(index_file))
@@ -253,6 +254,15 @@ def upsert_embeddings(index_path: str, chunks: List[dict], embeds: np.ndarray) -
                 "text": meta.get("text", ""),
             }
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    if embed_file.exists():
+        existing = np.load(embed_file)
+        if existing.ndim != 2 or existing.shape[1] != embeds.shape[1]:
+            raise ValueError("Embedding store shape does not match new embeddings")
+        combined = np.vstack([existing, embeds])
+    else:
+        combined = embeds
+    np.save(embed_file, combined)
 
 
 # ---------------------------------------------------------------------------

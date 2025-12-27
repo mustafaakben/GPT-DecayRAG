@@ -71,6 +71,20 @@ def _load_metadata(meta_path: str) -> List[dict]:
         return [json.loads(line) for line in fh if line.strip()]
 
 
+def _load_embeddings(index: faiss.Index, index_path: str) -> np.ndarray | None:
+    embed_file = Path(index_path + ".npy")
+    if embed_file.exists():
+        embeds = np.load(embed_file)
+        if embeds.shape[0] != index.ntotal:
+            raise ValueError("Embedding store size does not match index")
+        return embeds
+    if hasattr(index, "index") and hasattr(index.index, "reconstruct_n"):
+        return index.index.reconstruct_n(0, index.ntotal)
+    if hasattr(index, "reconstruct_n"):
+        return index.reconstruct_n(0, index.ntotal)
+    return None
+
+
 def retrieve(
     query: str,
     index_path: str,
@@ -87,18 +101,17 @@ def retrieve(
     if index.ntotal != len(meta):
         raise ValueError("Metadata size does not match index")
 
-    # reconstruct embeddings from the underlying flat index
-    if hasattr(index, "index") and hasattr(index.index, "reconstruct_n"):
-        embeds = index.index.reconstruct_n(0, index.ntotal)
-    elif hasattr(index, "reconstruct_n"):
-        embeds = index.reconstruct_n(0, index.ntotal)
-    else:
-        raise ValueError("Index type does not support reconstruct")
+    embeds = _load_embeddings(index, index_path)
+    if embedding_blend and embeds is None:
+        raise ValueError(
+            "Embedding blending requires stored embeddings; re-run ingestion to save "
+            f"{index_path}.npy or disable embedding_blend."
+        )
 
     qvec = embed_query(query, model)
 
     # Embedding-level pathway
-    if embedding_blend:
+    if embedding_blend and embeds is not None:
         final_embeds = np.empty_like(embeds)
 
         # group by document id
@@ -121,7 +134,15 @@ def retrieve(
             final_embeds[indices] = blended
 
         final_scores = compute_chunk_similarities(qvec, final_embeds)
-    else:
+        top_idx = top_k_chunks(final_scores, top_k)
+        results = []
+        for i in top_idx:
+            item = dict(meta[i])
+            item["score"] = float(final_scores[i])
+            results.append(item)
+        return results
+
+    if embeds is not None:
         raw_scores = compute_chunk_similarities(qvec, embeds)
         final_scores = raw_scores
         if decay:
@@ -129,11 +150,21 @@ def retrieve(
             final_scores = decayed
             if blend:
                 final_scores = blend_scores(raw_scores, decayed)
+        top_idx = top_k_chunks(final_scores, top_k)
+        results = []
+        for i in top_idx:
+            item = dict(meta[i])
+            item["score"] = float(final_scores[i])
+            results.append(item)
+        return results
 
-    top_idx = top_k_chunks(final_scores, top_k)
+    qvec = qvec.astype(np.float32, copy=False).reshape(1, -1)
+    scores, ids = index.search(qvec, top_k)
     results = []
-    for i in top_idx:
-        item = dict(meta[i])
-        item["score"] = float(final_scores[i])
+    for score, idx in zip(scores[0], ids[0]):
+        if idx == -1:
+            continue
+        item = dict(meta[int(idx)])
+        item["score"] = float(score)
         results.append(item)
     return results
