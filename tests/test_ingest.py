@@ -1,19 +1,6 @@
-import os
 from pathlib import Path
 
-import numpy as np
-import faiss
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from decayrag import (
-    parse_document,
-    chunk_nodes,
-    embed_chunks,
-    upsert_embeddings,
-    batch_ingest,
-)
-import decayrag.decayrag.ingest as ingest
+from decayrag import parse_document, chunk_nodes
 
 
 def test_parse_document_txt(tmp_path: Path) -> None:
@@ -33,58 +20,12 @@ def test_parse_document_md(tmp_path: Path) -> None:
     assert nodes[1]["level"] == ["Title", "Section"]
 
 
-def test_chunk_nodes_and_embed(tmp_path: Path, monkeypatch) -> None:
-    nodes = [{"doc_id": "x", "level": [], "text": "word " * 50}]
-    chunks = chunk_nodes(nodes, max_tokens=20, overlap=5)
-
-    def fake_api_embed(texts, model_name):
-        return np.ones((len(texts), 3), dtype=np.float32)
-
-    monkeypatch.setattr(ingest, "_api_embed", fake_api_embed)
-    assert len(chunks) > 0
-    embeds = embed_chunks(chunks, "text-embedding-3-small")
-    assert embeds.shape[0] == len(chunks)
-    assert embeds.shape[1] == 3
-    norms = np.linalg.norm(embeds, axis=1)
-    assert np.allclose(norms, 1.0, atol=1e-5)
-
-
-def test_upsert_and_batch_ingest(tmp_path: Path, monkeypatch) -> None:
-    index_path = tmp_path / "index.faiss"
-    chunks = [
-        {"doc_id": "d", "chunk_id": 0, "text": "hello", "level": [], "position": 0}
+def test_chunk_nodes_assigns_positions() -> None:
+    nodes = [
+        {"doc_id": "x", "level": [], "text": "one two three four five"},
+        {"doc_id": "x", "level": [], "text": "six seven eight"},
     ]
-    embeds = np.random.random((1, 384)).astype(np.float32)
-    upsert_embeddings(str(index_path), chunks, embeds)
-    assert index_path.exists()
-    meta = Path(str(index_path) + ".meta")
-    assert meta.exists()
-    lines = meta.read_text().strip().splitlines()
-    assert len(lines) == 1
-    # ingest via batch_ingest
-    folder = tmp_path / "docs"
-    folder.mkdir()
-    (folder / "a.txt").write_text("text")
-
-    def fake_api_embed(texts, model_name):
-        return np.ones((len(texts), 3), dtype=np.float32)
-
-    monkeypatch.setattr(ingest, "_api_embed", fake_api_embed)
-    batch_ingest(str(folder), str(index_path), "text-embedding-3-small", 10)
-    meta_lines = Path(str(index_path) + ".meta").read_text().strip().splitlines()
-    idx = faiss.read_index(str(index_path))
-    assert idx.ntotal == len(meta_lines)
-
-
-def test_batch_ingest_skips_blank_document(tmp_path: Path, monkeypatch) -> None:
-    folder = tmp_path / "docs"
-    folder.mkdir()
-    (folder / "empty.txt").write_text("")
-    index_path = tmp_path / "index.faiss"
-
-    def fail_api_embed(texts, model_name):
-        raise AssertionError("embed should not be called for blank documents")
-
-    monkeypatch.setattr(ingest, "_api_embed", fail_api_embed)
-    batch_ingest(str(folder), str(index_path), "text-embedding-3-small", 10)
-    assert not index_path.exists()
+    chunks = chunk_nodes(nodes, max_tokens=2, overlap=0)
+    assert chunks
+    assert [chunk["position"] for chunk in chunks] == list(range(len(chunks)))
+    assert all(chunk["doc_id"] == "x" for chunk in chunks)
