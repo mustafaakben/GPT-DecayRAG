@@ -11,7 +11,6 @@ from typing import List
 import faiss
 import numpy as np
 import yaml
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from pdfminer.high_level import extract_text
 import tiktoken
 
@@ -105,23 +104,41 @@ def parse_document(path: str) -> List[dict]:
 # 2. Chunking
 # ---------------------------------------------------------------------------
 
+def _split_text(text: str, max_tokens: int, overlap: int) -> List[str]:
+    if max_tokens <= 0:
+        return [text] if text else []
+    overlap = max(0, min(overlap, max_tokens - 1)) if max_tokens > 1 else 0
+    step = max_tokens - overlap if max_tokens > overlap else max_tokens
+    try:
+        encoding = tiktoken.get_encoding("cl100k_base")
+        tokens = encoding.encode(text)
+        if not tokens:
+            return []
+        chunks: List[str] = []
+        for start in range(0, len(tokens), step):
+            chunk_tokens = tokens[start:start + max_tokens]
+            if chunk_tokens:
+                chunks.append(encoding.decode(chunk_tokens))
+        return chunks
+    except Exception:
+        words = text.split()
+        if not words:
+            return []
+        chunks = []
+        for start in range(0, len(words), step):
+            chunk_words = words[start:start + max_tokens]
+            if chunk_words:
+                chunks.append(" ".join(chunk_words))
+        return chunks
+
+
 def chunk_nodes(nodes: List[dict], max_tokens: int, overlap: int = 0) -> List[dict]:
     """Split node texts into token-bounded chunks preserving order."""
-    splitter: RecursiveCharacterTextSplitter
-    try:
-        tiktoken.get_encoding("cl100k_base")
-        splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-            chunk_size=max_tokens,
-            chunk_overlap=overlap,
-            encoding_name="cl100k_base",
-        )
-    except Exception:
-        splitter = RecursiveCharacterTextSplitter(chunk_size=max_tokens, chunk_overlap=overlap)
 
     chunks: List[dict] = []
     pos = 0
     for node in nodes:
-        for piece in splitter.split_text(node["text"]):
+        for piece in _split_text(node["text"], max_tokens, overlap):
             chunks.append(
                 {
                     "doc_id": node["doc_id"],
@@ -219,4 +236,3 @@ def batch_ingest(
         except Exception as exc:  # pragma: no cover
             print(f"Warning: failed to ingest {file}: {exc}")
             continue
-

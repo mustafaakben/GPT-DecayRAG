@@ -7,13 +7,17 @@ import openai
 
 
 def test_assemble_context_sorting():
-    chunks = [
-        {"text": "B", "position": 1},
-        {"text": "A", "position": 0},
-        {"text": "C", "position": 2},
+    all_chunks = [
+        {"doc_id": "doc-1", "text": "A", "position": 0},
+        {"doc_id": "doc-1", "text": "B", "position": 1},
+        {"doc_id": "doc-1", "text": "C", "position": 2},
+        {"doc_id": "doc-1", "text": "D", "position": 3},
     ]
-    ctx = assemble_context(chunks, window=1)
-    assert ctx.splitlines() == ["A", "B", "C"]
+    chunks = [
+        {"doc_id": "doc-1", "text": "C", "position": 2},
+    ]
+    ctx = assemble_context(chunks, window=1, all_chunks=all_chunks)
+    assert ctx.splitlines() == ["B", "C", "D"]
 
 
 def test_generate_answer(monkeypatch):
