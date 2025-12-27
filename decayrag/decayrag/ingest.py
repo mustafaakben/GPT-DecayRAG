@@ -293,6 +293,9 @@ def embed_chunks(chunks: List[dict], model_name: str) -> np.ndarray:
 
 def upsert_embeddings(index_path: str, chunks: List[dict], embeds: np.ndarray) -> None:
     """Store embeddings and metadata into a FAISS index on disk."""
+    if len(chunks) == 0 or embeds.size == 0:
+        return
+
     index_file = Path(index_path)
     meta_file = Path(index_path + ".meta")
     embed_file = Path(index_path + ".npy")
@@ -349,7 +352,11 @@ def batch_ingest(
         try:
             nodes = parse_document(str(file))
             chunks = chunk_nodes(nodes, max_tokens, overlap)
+            if not chunks:
+                continue
             embeds = embed_chunks(chunks, model_name)
+            if embeds.size == 0:
+                continue
             upsert_embeddings(index_path, chunks, embeds)
         except Exception as exc:  # pragma: no cover
             print(f"Warning: failed to ingest {file}: {exc}")

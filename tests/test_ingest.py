@@ -75,3 +75,16 @@ def test_upsert_and_batch_ingest(tmp_path: Path, monkeypatch) -> None:
     idx = faiss.read_index(str(index_path))
     assert idx.ntotal == len(meta_lines)
 
+
+def test_batch_ingest_skips_blank_document(tmp_path: Path, monkeypatch) -> None:
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    (folder / "empty.txt").write_text("")
+    index_path = tmp_path / "index.faiss"
+
+    def fail_api_embed(texts, model_name):
+        raise AssertionError("embed should not be called for blank documents")
+
+    monkeypatch.setattr(ingest, "_api_embed", fail_api_embed)
+    batch_ingest(str(folder), str(index_path), "text-embedding-3-small", 10)
+    assert not index_path.exists()
