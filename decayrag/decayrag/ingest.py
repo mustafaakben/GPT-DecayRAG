@@ -16,11 +16,13 @@ import tiktoken
 
 __all__ = [
     "load_config",
+    "resolve_ingest_settings",
     "parse_document",
     "chunk_nodes",
     "embed_chunks",
     "upsert_embeddings",
     "batch_ingest",
+    "batch_ingest_from_config",
 ]
 
 
@@ -36,6 +38,47 @@ def load_config(path: str | None = None) -> dict:
     config_path = Path(path or "config.yaml")
     with config_path.open("r", encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
+
+
+def _coerce_int(value: int | str | None, name: str) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+
+
+def resolve_ingest_settings(
+    config_path: str | None = None,
+    *,
+    index_path: str | None = None,
+    model_name: str | None = None,
+    max_tokens: int | str | None = None,
+    overlap: int | str | None = None,
+) -> dict:
+    """Resolve ingestion settings from config and overrides."""
+    cfg = load_config(config_path) if config_path else {}
+    resolved_index = index_path or cfg.get("index_path")
+    if not resolved_index:
+        raise ValueError("index_path is required (provide CLI arg or config.yaml)")
+    resolved_model = model_name or cfg.get("model") or "text-embedding-3-small"
+    resolved_max_tokens = (
+        _coerce_int(max_tokens, "max_tokens")
+        if max_tokens is not None
+        else _coerce_int(cfg.get("max_tokens", 200), "max_tokens")
+    )
+    resolved_overlap = (
+        _coerce_int(overlap, "overlap")
+        if overlap is not None
+        else _coerce_int(cfg.get("overlap", 0), "overlap")
+    )
+    return {
+        "index_path": resolved_index,
+        "model_name": resolved_model,
+        "max_tokens": resolved_max_tokens,
+        "overlap": resolved_overlap,
+    }
 
 # ---------------------------------------------------------------------------
 # 1. Document parsing
@@ -236,3 +279,30 @@ def batch_ingest(
         except Exception as exc:  # pragma: no cover
             print(f"Warning: failed to ingest {file}: {exc}")
             continue
+
+
+def batch_ingest_from_config(
+    input_folder: str,
+    config_path: str | None = None,
+    *,
+    index_path: str | None = None,
+    model_name: str | None = None,
+    max_tokens: int | str | None = None,
+    overlap: int | str | None = None,
+) -> dict:
+    """Run batch ingestion using config defaults with optional overrides."""
+    settings = resolve_ingest_settings(
+        config_path,
+        index_path=index_path,
+        model_name=model_name,
+        max_tokens=max_tokens,
+        overlap=overlap,
+    )
+    batch_ingest(
+        input_folder,
+        settings["index_path"],
+        settings["model_name"],
+        settings["max_tokens"],
+        settings["overlap"],
+    )
+    return settings
