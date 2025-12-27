@@ -170,13 +170,46 @@ pytest
 
 ---
 
-## 9 License
+## 9 Quality Assurance
+
+New features must include unit tests. Aim to cover the full DecayRAG pipeline:
+
+* **Ingestion**: parsing, chunking, embedding shape/metadata, persistence.
+* **Retrieval**: scoring, neighbor decay, blending, top-k selection.
+* **Post-retrieval**: context assembly and generation request construction.
+
+### Minimal test matrix
+
+| Area | Minimum coverage |
+| ---- | ---------------- |
+| Ingestion | `parse_document` + `chunk_nodes` happy path and edge cases |
+| Retrieval | decay + blend functions, `retrieve` orchestration |
+| Post-retrieval | `assemble_context` formatting and ordering |
+
+### Mocking external APIs
+
+Tests must be deterministic. Mock OpenAI (and other external APIs) at the client
+boundary so unit tests never hit the network. Prefer fixtures that return fixed
+embeddings or answers, and assert downstream behavior (e.g., blend weights,
+neighbor decay outputs). Keep OpenAI keys out of test environments; CI should
+run with mocks only.
+
+### Contributor checklist
+
+* [ ] Added or updated unit tests for the new feature.
+* [ ] Covered ingestion/retrieval/post-retrieval behavior as applicable.
+* [ ] Mocked external API calls (e.g., OpenAI) for deterministic tests.
+* [ ] `pytest` passes locally and in CI.
+
+---
+
+## 10 License
 
 DecayRAG is released under the **MIT License**. See the `LICENSE` file for details.
 
 ---
 
-## 10 Citation
+## 11 Citation
 
 ```bibtex
 @misc{decayrag2025,
@@ -189,7 +222,7 @@ DecayRAG is released under the **MIT License**. See the `LICENSE` file for detai
 
 ---
 
-## 11 Contributing & Support
+## 12 Contributing & Support
 
 Open an issue or pull request on GitHub. Join the discussion tab for questions and roadmap chatter.
 
