@@ -24,9 +24,11 @@ def test_generate_answer(monkeypatch):
     calls = {}
 
     class FakeCompletions:
-        def create(self, model, messages):
+        def create(self, model, messages, temperature, max_tokens):
             calls["model"] = model
             calls["messages"] = messages
+            calls["temperature"] = temperature
+            calls["max_tokens"] = max_tokens
             class Res:
                 choices = [
                     type("obj", (object,), {"message": type("m", (object,), {"content": "Answer"})()})
@@ -47,3 +49,21 @@ def test_generate_answer(monkeypatch):
     out = generate_answer("ctx", "q", "gpt-test")
     assert out == "Answer"
     assert calls["model"] == "gpt-test"
+    assert calls["temperature"] == 0.2
+    assert calls["max_tokens"] == 512
+
+
+def test_generate_answer_requires_context_and_query():
+    try:
+        generate_answer("", "q", "gpt-test")
+    except ValueError as exc:
+        assert "Context is empty" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for empty context")
+
+    try:
+        generate_answer("ctx", "  ", "gpt-test")
+    except ValueError as exc:
+        assert "Query is empty" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for empty query")
