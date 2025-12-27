@@ -67,3 +67,19 @@ def test_generate_answer_requires_context_and_query():
         assert "Query is empty" in str(exc)
     else:
         raise AssertionError("Expected ValueError for empty query")
+
+
+def test_assemble_context_window_expansion():
+    all_chunks = [
+        {"doc_id": "doc-1", "text": "A", "position": 0},
+        {"doc_id": "doc-1", "text": "B", "position": 1},
+        {"doc_id": "doc-1", "text": "C", "position": 2},
+        {"doc_id": "doc-1", "text": "D", "position": 3},
+        {"doc_id": "doc-1", "text": "E", "position": 4},
+        {"doc_id": "doc-2", "text": "X", "position": 0},
+    ]
+    chunks = [
+        {"doc_id": "doc-1", "text": "C", "position": 2},
+    ]
+    ctx = assemble_context(chunks, window=2, all_chunks=all_chunks)
+    assert ctx.splitlines() == ["A", "B", "C", "D", "E"]
