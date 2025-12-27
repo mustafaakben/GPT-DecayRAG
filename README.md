@@ -127,6 +127,8 @@ python examples/quickstart.py docs/ data/custom.faiss --config config.yaml --max
 Set the `OPENAI_API_KEY` environment variable when using OpenAI embeddings or chat
 generation.
 
+### Generate Answer
+
 To retrieve context and generate answers with configuration-driven settings, use:
 
 ```bash
@@ -148,6 +150,8 @@ The following optional keys are supported for generation:
 * `answer_max_tokens`
 * `answer_system_prompt`
 * `answer_model`
+
+CLI arguments override any values set in `config.yaml`.
 
 You can also invoke the generator directly as a module:
 

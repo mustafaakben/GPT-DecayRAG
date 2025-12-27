@@ -25,9 +25,29 @@ def main() -> None:
     parser.add_argument("--top_k", type=int, default=None, help="Number of chunks to retrieve")
     parser.add_argument("--window", type=int, default=None, help="Neighbour window size")
     parser.add_argument("--model", default=None, help="Chat model name")
-    parser.add_argument("--temperature", type=float, default=None)
-    parser.add_argument("--max_tokens", type=int, default=None)
-    parser.add_argument("--system_prompt", default=None)
+    parser.add_argument(
+        "--answer_temperature",
+        "--temperature",
+        dest="answer_temperature",
+        type=float,
+        default=None,
+        help="Sampling temperature for answer generation",
+    )
+    parser.add_argument(
+        "--answer_max_tokens",
+        "--max_tokens",
+        dest="answer_max_tokens",
+        type=int,
+        default=None,
+        help="Maximum tokens to generate for the answer",
+    )
+    parser.add_argument(
+        "--answer_system_prompt",
+        "--system_prompt",
+        dest="answer_system_prompt",
+        default=None,
+        help="System prompt to steer answer generation",
+    )
     parser.add_argument("--config", help="Path to config.yaml", default=None)
     args = parser.parse_args()
 
@@ -42,10 +62,16 @@ def main() -> None:
     window = args.window if args.window is not None else int(cfg.get("window", 1))
     model = args.model or cfg.get("answer_model", "gpt-4o-mini")
     temperature = (
-        args.temperature if args.temperature is not None else float(cfg.get("answer_temperature", 0.2))
+        args.answer_temperature
+        if args.answer_temperature is not None
+        else float(cfg.get("answer_temperature", 0.2))
     )
-    max_tokens = args.max_tokens if args.max_tokens is not None else int(cfg.get("answer_max_tokens", 512))
-    system_prompt = args.system_prompt or cfg.get(
+    max_tokens = (
+        args.answer_max_tokens
+        if args.answer_max_tokens is not None
+        else int(cfg.get("answer_max_tokens", 512))
+    )
+    system_prompt = args.answer_system_prompt or cfg.get(
         "answer_system_prompt",
         "You are a helpful assistant.",
     )
