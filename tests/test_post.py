@@ -6,18 +6,25 @@ from decayrag import assemble_context, generate_answer
 import openai
 
 
-def test_assemble_context_sorting():
+def test_assemble_context_orders_windowed_neighbors():
     all_chunks = [
-        {"doc_id": "doc-1", "text": "A", "position": 0},
-        {"doc_id": "doc-1", "text": "B", "position": 1},
-        {"doc_id": "doc-1", "text": "C", "position": 2},
-        {"doc_id": "doc-1", "text": "D", "position": 3},
+        {"doc_id": "doc-1", "text": "A0", "position": 0},
+        {"doc_id": "doc-1", "text": "A1", "position": 1},
+        {"doc_id": "doc-1", "text": "A2", "position": 2},
+        {"doc_id": "doc-2", "text": "B0", "position": 0},
+        {"doc_id": "doc-2", "text": "B1", "position": 1},
+        {"doc_id": "doc-2", "text": "B2", "position": 2},
     ]
     chunks = [
-        {"doc_id": "doc-1", "text": "C", "position": 2},
+        {"doc_id": "doc-2", "text": "B1", "position": 1},
+        {"doc_id": "doc-1", "text": "A1", "position": 1},
     ]
     ctx = assemble_context(chunks, window=1, all_chunks=all_chunks)
-    assert ctx.splitlines() == ["B", "C", "D"]
+    assert ctx.splitlines() == ["A0", "A1", "A2", "B0", "B1", "B2"]
+
+
+def test_assemble_context_empty_input_returns_empty_string():
+    assert assemble_context([], window=1, all_chunks=[]) == ""
 
 
 def test_generate_answer(monkeypatch):
@@ -51,6 +58,10 @@ def test_generate_answer(monkeypatch):
     assert calls["model"] == "gpt-test"
     assert calls["temperature"] == 0.2
     assert calls["max_tokens"] == 512
+    assert calls["messages"] == [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Context:\nctx\n\nQuestion: q\nAnswer:"},
+    ]
 
 
 def test_generate_answer_requires_context_and_query():
