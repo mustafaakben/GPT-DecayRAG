@@ -48,8 +48,20 @@ def assemble_context(chunks: List[dict], window: int, all_chunks: List[dict] | N
     return "\n".join(texts)
 
 
-def generate_answer(context: str, query: str, model: str) -> str:
+def generate_answer(
+    context: str,
+    query: str,
+    model: str,
+    *,
+    temperature: float = 0.2,
+    max_tokens: int = 512,
+    system_prompt: str = "You are a helpful assistant.",
+) -> str:
     """Call an LLM to produce an answer based on *context* and *query*."""
+    if not context or not context.strip():
+        raise ValueError("Context is empty; provide retrieved context before generating an answer.")
+    if not query or not query.strip():
+        raise ValueError("Query is empty; provide a question before generating an answer.")
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY not set")
@@ -57,11 +69,13 @@ def generate_answer(context: str, query: str, model: str) -> str:
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": system_prompt},
             {
                 "role": "user",
                 "content": f"Context:\n{context}\n\nQuestion: {query}\nAnswer:",
             },
         ],
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
     return response.choices[0].message.content.strip()

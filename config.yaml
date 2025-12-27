@@ -2,3 +2,6 @@ index_path: data/index.faiss
 model: text-embedding-3-small
 max_tokens: 200
 overlap: 20
+answer_temperature: 0.2
+answer_max_tokens: 512
+answer_system_prompt: You are a helpful assistant.

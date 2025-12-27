@@ -117,6 +117,18 @@ python examples/quickstart.py docs/ data/index.faiss --config config.yaml
 ```
 Set the `OPENAI_API_KEY` environment variable when using OpenAI embeddings.
 
+To generate answers with configuration-driven settings, use:
+
+```bash
+python examples/generate_answer.py "Context text..." "What is this about?" --config config.yaml
+```
+
+The following optional keys are supported for generation:
+
+* `answer_temperature`
+* `answer_max_tokens`
+* `answer_system_prompt`
+
 ---
 
 ## 7 Requirements
@@ -193,4 +205,3 @@ Open an issue or pull request on GitHub. Join the discussion tab for questions a
 |                                 | **5.4 License & paper draft**                                                                        | MIT/Apache-2.0 + arXiv template                       | ⬜️                    |
 
 **Legend:** ✅ done | ⬜️ open
-
