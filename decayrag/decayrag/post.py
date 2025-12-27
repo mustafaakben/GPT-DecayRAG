@@ -43,7 +43,10 @@ def assemble_context(chunks: List[dict], window: int, all_chunks: List[dict] | N
             if neighbor is not None:
                 expanded[(doc_id, neighbor_pos)] = neighbor
 
-    ordered = sorted(expanded.values(), key=lambda c: int(c.get("position", 0)))
+    ordered = sorted(
+        expanded.values(),
+        key=lambda c: (str(c.get("doc_id", "")), int(c.get("position", 0))),
+    )
     texts = [c.get("text", "") for c in ordered]
     return "\n".join(texts)
 
