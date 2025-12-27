@@ -124,12 +124,13 @@ python examples/quickstart.py docs/ --config config.yaml
 # override config values via CLI (index path and chunking settings)
 python examples/quickstart.py docs/ data/custom.faiss --config config.yaml --max_tokens 256 --overlap 32
 ```
-Set the `OPENAI_API_KEY` environment variable when using OpenAI embeddings.
+Set the `OPENAI_API_KEY` environment variable when using OpenAI embeddings or chat
+generation.
 
-To generate answers with configuration-driven settings, use:
+To retrieve context and generate answers with configuration-driven settings, use:
 
 ```bash
-python examples/generate_answer.py "Context text..." "What is this about?" --config config.yaml
+python examples/generate_answer.py "What is DecayRAG?" --index_path data/index.faiss --config config.yaml --top_k 5 --window 2 --model gpt-4o-mini
 ```
 
 The following optional keys are supported for ingestion:
@@ -146,6 +147,17 @@ The following optional keys are supported for generation:
 * `answer_temperature`
 * `answer_max_tokens`
 * `answer_system_prompt`
+* `answer_model`
+
+You can also invoke the generator directly as a module:
+
+```bash
+python -m decayrag.post "What is DecayRAG?" --index_path data/index.faiss --config config.yaml
+```
+
+Environment variables required for retrieval + generation:
+
+* `OPENAI_API_KEY`
 
 ---
 
