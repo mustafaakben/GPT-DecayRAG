@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import List, Optional, Dict
@@ -10,7 +11,7 @@ import faiss
 import numpy as np
 
 from decayrag import embed_query
-from decayrag.decayrag.ingest import _api_embed
+from decayrag.decayrag.ingest import _api_embed, _api_embed_async
 
 
 class SentenceWindowRetriever:
@@ -64,6 +65,52 @@ class SentenceWindowRetriever:
         # Embed chunks
         texts = [c.get("text", "") for c in chunks]
         self.embeddings = _api_embed(texts, self.model)
+
+        # Normalize
+        norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)
+        np.divide(self.embeddings, norms, out=self.embeddings, where=norms != 0)
+
+        # Build index
+        dim = self.embeddings.shape[1]
+        self.index = faiss.IndexFlatIP(dim)
+        self.index.add(self.embeddings.astype(np.float32))
+
+    async def index_chunks_async(
+        self,
+        chunks: List[dict],
+        concurrency_limit: int = 50,
+    ) -> None:
+        """Async version of index_chunks.
+
+        Parameters
+        ----------
+        chunks : List[dict]
+            List of chunk dictionaries
+        concurrency_limit : int
+            Maximum concurrent embedding requests
+        """
+        if not chunks:
+            return
+
+        self.chunks = chunks
+
+        # Organize chunks by document
+        self.doc_chunks = {}
+        for chunk in chunks:
+            doc_id = chunk.get("doc_id", "")
+            if doc_id not in self.doc_chunks:
+                self.doc_chunks[doc_id] = []
+            self.doc_chunks[doc_id].append(chunk)
+
+        # Sort by position within each document
+        for doc_id in self.doc_chunks:
+            self.doc_chunks[doc_id].sort(key=lambda x: x.get("position", 0))
+
+        # Embed chunks asynchronously
+        texts = [c.get("text", "") for c in chunks]
+        self.embeddings = await _api_embed_async(
+            texts, self.model, concurrency_limit=concurrency_limit
+        )
 
         # Normalize
         norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)

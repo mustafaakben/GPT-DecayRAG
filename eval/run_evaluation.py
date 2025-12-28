@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -23,16 +24,25 @@ from decayrag import (
     chunk_nodes,
     parse_document,
     retrieve,
+    embed_chunks,
+    upsert_embeddings,
 )
+from decayrag.decayrag.ingest import embed_chunks_async
 
 from eval.dataset.wikipedia_loader import (
     download_wikipedia_articles,
+    download_wikipedia_articles_async,
     save_articles_as_text,
     WikipediaArticle,
 )
-from eval.dataset.chunk_pair_finder import find_bridge_chunk_pairs, ChunkPair
+from eval.dataset.chunk_pair_finder import (
+    find_bridge_chunk_pairs,
+    find_all_bridge_chunk_pairs_async,
+    ChunkPair,
+)
 from eval.dataset.question_generator import (
     generate_multihop_questions,
+    generate_multihop_questions_async,
     save_questions,
     load_questions,
     MultiHopQuestion,
@@ -436,6 +446,222 @@ def save_results(
     return str(output_file)
 
 
+# ---------------------------------------------------------------------------
+# Async versions of the evaluation functions
+# ---------------------------------------------------------------------------
+
+
+async def prepare_dataset_async(config: EvalConfig) -> tuple:
+    """Async version of prepare_dataset.
+
+    Downloads articles and generates questions concurrently.
+
+    Returns
+    -------
+    tuple
+        (articles, all_chunks, questions, doc_chunks_map)
+    """
+    print("=" * 60)
+    print("PHASE 1: Dataset Preparation (Async)")
+    print("=" * 60)
+
+    # Download articles concurrently
+    print("\n1.1 Downloading Wikipedia articles...")
+    articles = await download_wikipedia_articles_async(
+        titles=config.articles,
+        min_word_count=config.min_word_count,
+        cache_dir=config.cache_dir,
+    )
+
+    if not articles:
+        raise RuntimeError("No articles downloaded!")
+
+    print(f"  Downloaded {len(articles)} articles")
+
+    # Save as text files (sync is fine for file I/O)
+    docs_dir = Path(config.cache_dir) / "docs"
+    save_articles_as_text(articles, str(docs_dir))
+
+    # Parse and chunk (CPU-bound, keep sync)
+    print("\n1.2 Parsing and chunking documents...")
+    all_chunks = []
+    doc_chunks_map = {}
+
+    for article in articles:
+        safe_title = article.title.replace(' ', '_')
+        doc_path = docs_dir / f"{safe_title}.txt"
+
+        if not doc_path.exists():
+            print(f"  Warning: {doc_path} not found, skipping")
+            continue
+
+        nodes = parse_document(str(doc_path))
+        chunks = chunk_nodes(nodes, config.max_tokens, config.overlap)
+
+        for chunk in chunks:
+            chunk["doc_id"] = article.title
+
+        doc_chunks_map[article.title] = chunks
+        all_chunks.extend(chunks)
+        print(f"  {article.title}: {len(chunks)} chunks")
+
+    print(f"  Total: {len(all_chunks)} chunks")
+
+    # Find chunk pairs concurrently
+    print("\n1.3 Finding chunk pairs...")
+    all_pairs_dict = await find_all_bridge_chunk_pairs_async(
+        doc_chunks_map,
+        min_distance=config.min_chunk_distance,
+        max_distance=config.max_chunk_distance,
+        max_pairs=config.questions_per_article * 2,
+    )
+
+    # Flatten pairs
+    all_pairs = []
+    for doc_id, pairs in all_pairs_dict.items():
+        all_pairs.extend(pairs)
+        print(f"  {doc_id}: {len(pairs)} chunk pairs")
+
+    # Generate questions concurrently
+    print("\n1.4 Generating multi-hop questions...")
+    questions = await generate_multihop_questions_async(
+        chunk_pairs=all_pairs,
+        model="gpt-5.2",
+        validate=config.validate_questions,
+        max_questions=config.questions_per_article * len(articles),
+    )
+
+    # Save questions
+    questions_path = Path(config.cache_dir) / "questions.json"
+    save_questions(questions, str(questions_path))
+
+    print(f"\n  Generated {len(questions)} validated questions")
+
+    return articles, all_chunks, questions, doc_chunks_map
+
+
+async def build_retrievers_async(
+    all_chunks: List[dict],
+    config: EvalConfig,
+) -> Dict[str, object]:
+    """Async version of build_retrievers.
+
+    Returns
+    -------
+    Dict[str, retriever]
+        Dictionary mapping method names to retriever instances
+    """
+    print("\n" + "=" * 60)
+    print("PHASE 2: Building Retrievers (Async)")
+    print("=" * 60)
+
+    retrievers = {}
+
+    # BM25 (no API calls needed, keep sync)
+    print("\n2.1 Building BM25 retriever...")
+    bm25 = BM25Retriever()
+    bm25.index_chunks(all_chunks)
+    retrievers["BM25"] = bm25
+    print("  ✓ BM25 ready")
+
+    # Naive (dense, no decay) - async embeddings
+    print("\n2.2 Building Naive retriever (async)...")
+    naive = NaiveRetriever(model=config.embedding_model)
+    await naive.index_chunks_async(all_chunks)
+    retrievers["Naive"] = naive
+    print("  ✓ Naive ready")
+
+    # Sentence Window - reuse embeddings from Naive
+    print("\n2.3 Building Sentence Window retriever...")
+    sentence_window = SentenceWindowRetriever(
+        model=config.embedding_model,
+        window_size=1,
+    )
+    sentence_window.chunks = all_chunks
+    sentence_window.embeddings = naive.embeddings  # Reuse embeddings
+    sentence_window.index = naive.index
+    # Build doc_chunks
+    sentence_window.doc_chunks = {}
+    for chunk in all_chunks:
+        doc_id = chunk.get("doc_id", "")
+        if doc_id not in sentence_window.doc_chunks:
+            sentence_window.doc_chunks[doc_id] = []
+        sentence_window.doc_chunks[doc_id].append(chunk)
+    for doc_id in sentence_window.doc_chunks:
+        sentence_window.doc_chunks[doc_id].sort(key=lambda x: x.get("position", 0))
+    retrievers["SentenceWindow"] = sentence_window
+    print("  ✓ Sentence Window ready")
+
+    # Hybrid - reuse both dense and sparse
+    print("\n2.4 Building Hybrid retriever...")
+    hybrid = HybridRetriever(model=config.embedding_model)
+    hybrid.chunks = all_chunks
+    hybrid.dense_retriever = naive
+    hybrid.sparse_retriever = bm25
+    retrievers["Hybrid"] = hybrid
+    print("  ✓ Hybrid ready")
+
+    # DecayRAG will use the main retrieve function
+    retrievers["DecayRAG"] = None  # Placeholder, handled specially
+
+    return retrievers
+
+
+async def main_async(config: Optional[EvalConfig] = None) -> Dict:
+    """Async version of main evaluation pipeline.
+
+    Parameters
+    ----------
+    config : EvalConfig, optional
+        Evaluation configuration
+
+    Returns
+    -------
+    Dict
+        Aggregated results
+    """
+    if config is None:
+        config = EvalConfig()
+
+    print("\n" + "=" * 60)
+    print("DecayRAG Multi-Hop Retrieval Evaluation (Async)")
+    print("=" * 60)
+    print(f"Articles: {config.articles}")
+    print(f"Questions per article: {config.questions_per_article}")
+    print(f"Evaluation K values: {config.top_k_values}")
+
+    # Phase 1: Prepare dataset (async)
+    articles, all_chunks, questions, doc_chunks_map = await prepare_dataset_async(config)
+
+    if not questions:
+        print("ERROR: No questions generated!")
+        return {}
+
+    # Build DecayRAG index
+    print("\n2.5 Building DecayRAG index (async)...")
+    index_path = str(Path(config.cache_dir) / "decayrag_index.faiss")
+
+    # Use async embedding
+    embeds = await embed_chunks_async(all_chunks, config.embedding_model)
+    upsert_embeddings(index_path, all_chunks, embeds)
+    print("  ✓ DecayRAG index ready")
+
+    # Phase 2: Build retrievers (async)
+    retrievers = await build_retrievers_async(all_chunks, config)
+
+    # Phase 3: Run evaluation (sync - FAISS search is CPU-bound)
+    results = run_evaluation(questions, all_chunks, retrievers, config, index_path)
+
+    # Phase 4: Aggregate and report (sync)
+    aggregated = aggregate_results(results, config)
+    print_results_table(aggregated, config)
+
+    # Save results
+    save_results(results, aggregated, config)
+
+    return aggregated
+
+
 def main(config: Optional[EvalConfig] = None) -> Dict:
     """Run the full evaluation pipeline.
 
@@ -501,6 +727,11 @@ if __name__ == "__main__":
                        help="Questions per article")
     parser.add_argument("--no-validate", action="store_true",
                        help="Skip question validation")
+    parser.add_argument("--async", dest="use_async", action="store_true",
+                       help="Use async/concurrent execution (faster)")
+    parser.add_argument("--sync", dest="use_async", action="store_false",
+                       help="Use synchronous execution (default)")
+    parser.set_defaults(use_async=True)  # Default to async for better performance
     args = parser.parse_args()
 
     config = EvalConfig(
@@ -509,4 +740,7 @@ if __name__ == "__main__":
         validate_questions=not args.no_validate,
     )
 
-    main(config)
+    if args.use_async:
+        asyncio.run(main_async(config))
+    else:
+        main(config)

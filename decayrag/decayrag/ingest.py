@@ -20,6 +20,8 @@ __all__ = [
     "parse_document",
     "chunk_nodes",
     "embed_chunks",
+    "embed_chunks_async",
+    "_api_embed_async",
     "upsert_embeddings",
     "batch_ingest",
     "batch_ingest_from_config",
@@ -276,6 +278,146 @@ def _api_embed(
                 raise RuntimeError("OpenAI embeddings request failed.") from exc
 
     return np.asarray(vectors, dtype=np.float32)
+
+
+async def _api_embed_async(
+    texts: List[str],
+    model_name: str,
+    *,
+    batch_size: int | None = None,
+    timeout: float | None = None,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    concurrency_limit: int = 50,
+) -> np.ndarray:
+    """Async version of _api_embed using AsyncOpenAI client.
+
+    Parameters
+    ----------
+    texts : List[str]
+        Texts to embed
+    model_name : str
+        OpenAI embedding model name
+    batch_size : int, optional
+        Number of texts per API call
+    timeout : float, optional
+        Request timeout in seconds
+    max_retries : int
+        Maximum retry attempts for transient errors
+    base_delay : float
+        Base delay for exponential backoff
+    concurrency_limit : int
+        Maximum concurrent API requests
+
+    Returns
+    -------
+    np.ndarray
+        Embeddings matrix (n_texts, embedding_dim)
+    """
+    import asyncio
+    import openai
+    from openai import AsyncOpenAI
+
+    if not texts:
+        return np.empty((0, 0), dtype=np.float32)
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY not set. Set the environment variable to call the embeddings API."
+        )
+
+    env_batch_size = os.getenv("OPENAI_EMBED_BATCH_SIZE")
+    resolved_batch_size = (
+        _coerce_int(batch_size, "batch_size")
+        if batch_size is not None
+        else _coerce_int(env_batch_size, "OPENAI_EMBED_BATCH_SIZE")
+        if env_batch_size
+        else 100  # Default batch size for async
+    )
+    if resolved_batch_size is None or resolved_batch_size <= 0:
+        raise ValueError("batch_size must be a positive integer")
+
+    resolved_timeout = timeout
+    if resolved_timeout is None:
+        env_timeout = os.getenv("OPENAI_TIMEOUT")
+        if env_timeout is not None:
+            try:
+                resolved_timeout = float(env_timeout)
+            except ValueError as exc:
+                raise ValueError("OPENAI_TIMEOUT must be a number") from exc
+
+    client = AsyncOpenAI(api_key=api_key, timeout=resolved_timeout)
+    semaphore = asyncio.Semaphore(concurrency_limit)
+
+    transient_errors = tuple(
+        err
+        for err in (
+            getattr(openai, "RateLimitError", None),
+            getattr(openai, "APIConnectionError", None),
+            getattr(openai, "APITimeoutError", None),
+            getattr(openai, "InternalServerError", None),
+            getattr(openai, "APIError", None),
+        )
+        if err is not None
+    )
+
+    async def embed_batch(batch: List[str], batch_idx: int) -> tuple[int, List[List[float]]]:
+        """Embed a single batch with retry logic."""
+        async with semaphore:
+            for attempt in range(max_retries):
+                try:
+                    response = await client.embeddings.create(model=model_name, input=batch)
+                    return batch_idx, [item.embedding for item in response.data]
+                except transient_errors as exc:
+                    if attempt >= max_retries - 1:
+                        raise RuntimeError(
+                            "OpenAI embeddings request failed after retries."
+                        ) from exc
+                    delay = base_delay * (2 ** attempt)
+                    await asyncio.sleep(delay)
+                except Exception as exc:
+                    raise RuntimeError("OpenAI embeddings request failed.") from exc
+        return batch_idx, []  # Should not reach here
+
+    # Create batches
+    batches = []
+    for i in range(0, len(texts), resolved_batch_size):
+        batches.append(texts[i:i + resolved_batch_size])
+
+    # Execute all batches concurrently
+    tasks = [embed_batch(batch, idx) for idx, batch in enumerate(batches)]
+    results = await asyncio.gather(*tasks)
+
+    # Sort by batch index and flatten
+    results.sort(key=lambda x: x[0])
+    vectors = []
+    for _, batch_vectors in results:
+        vectors.extend(batch_vectors)
+
+    return np.asarray(vectors, dtype=np.float32)
+
+
+async def embed_chunks_async(chunks: List[dict], model_name: str) -> np.ndarray:
+    """Async version of embed_chunks using AsyncOpenAI client.
+
+    Parameters
+    ----------
+    chunks : List[dict]
+        Chunks to embed (must have 'text' key)
+    model_name : str
+        OpenAI embedding model name
+
+    Returns
+    -------
+    np.ndarray
+        Normalized embeddings matrix
+    """
+    texts = [c["text"] for c in chunks]
+    embeds = await _api_embed_async(texts, model_name)
+    norms = np.linalg.norm(embeds, axis=1, keepdims=True)
+    np.divide(embeds, norms, out=embeds, where=norms != 0)
+    return embeds
 
 
 def embed_chunks(chunks: List[dict], model_name: str) -> np.ndarray:

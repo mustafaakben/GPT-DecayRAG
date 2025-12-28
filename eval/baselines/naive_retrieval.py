@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,7 @@ import faiss
 import numpy as np
 
 from decayrag import embed_chunks, embed_query
-from decayrag.decayrag.ingest import _api_embed
+from decayrag.decayrag.ingest import _api_embed, _api_embed_async
 
 
 class NaiveRetriever:
@@ -46,6 +47,40 @@ class NaiveRetriever:
         # Embed chunks
         texts = [c.get("text", "") for c in chunks]
         self.embeddings = _api_embed(texts, self.model)
+
+        # Normalize embeddings
+        norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)
+        np.divide(self.embeddings, norms, out=self.embeddings, where=norms != 0)
+
+        # Build FAISS index
+        dim = self.embeddings.shape[1]
+        self.index = faiss.IndexFlatIP(dim)
+        self.index.add(self.embeddings.astype(np.float32))
+
+    async def index_chunks_async(
+        self,
+        chunks: List[dict],
+        concurrency_limit: int = 50,
+    ) -> None:
+        """Async version of index_chunks.
+
+        Parameters
+        ----------
+        chunks : List[dict]
+            List of chunk dictionaries with 'text', 'position', 'doc_id' keys
+        concurrency_limit : int
+            Maximum concurrent embedding requests
+        """
+        if not chunks:
+            return
+
+        self.chunks = chunks
+
+        # Embed chunks asynchronously
+        texts = [c.get("text", "") for c in chunks]
+        self.embeddings = await _api_embed_async(
+            texts, self.model, concurrency_limit=concurrency_limit
+        )
 
         # Normalize embeddings
         norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import List, Optional, Dict
@@ -73,6 +74,26 @@ class HybridRetriever:
         """
         self.chunks = chunks
         self.dense_retriever.index_chunks(chunks)
+        self.sparse_retriever.index_chunks(chunks)
+
+    async def index_chunks_async(
+        self,
+        chunks: List[dict],
+        concurrency_limit: int = 50,
+    ) -> None:
+        """Async version of index_chunks.
+
+        Parameters
+        ----------
+        chunks : List[dict]
+            List of chunk dictionaries
+        concurrency_limit : int
+            Maximum concurrent embedding requests
+        """
+        self.chunks = chunks
+        # Dense retriever uses async for API calls
+        await self.dense_retriever.index_chunks_async(chunks, concurrency_limit)
+        # BM25 is CPU-bound, keep sync
         self.sparse_retriever.index_chunks(chunks)
 
     def retrieve(
