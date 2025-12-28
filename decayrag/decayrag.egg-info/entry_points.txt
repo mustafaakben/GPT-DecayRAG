@@ -1,0 +1,3 @@
+[console_scripts]
+decayrag-answer = decayrag.post:_run_cli
+decayrag-ingest = decayrag.ingest:_cli_main

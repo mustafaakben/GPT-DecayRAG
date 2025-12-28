@@ -82,17 +82,29 @@ $**e**ᵢ′ = α·**e**ᵢ + β·**\~e**ᵢ + γ·**E**₍doc₎$
 decayrag/
 │
 ├─ decayrag/
-│   ├─ __init__.py        # Package initialization
-│   ├─ ingest.py          # Document ingestion
-│   ├─ pooling.py         # Embedding pooling helpers
-│   └─ retrieval.py       # Query-time retrieval
+│   ├─ __init__.py        # Package initialization & exports
+│   ├─ ingest.py          # Document ingestion pipeline
+│   ├─ pooling.py         # Embedding pooling & decay kernels
+│   ├─ retrieval.py       # Query-time retrieval
+│   └─ post.py            # Context assembly & answer generation
 │
 ├─ examples/
-│   └─ quickstart.py      # End-to-end example
+│   ├─ quickstart.py      # End-to-end ingestion example
+│   └─ generate_answer.py # Retrieval & answer generation example
 │
 ├─ tests/
-│   └─ test_ingest.py     # pytest unit tests
+│   ├─ test_config.py
+│   ├─ test_ingest.py
+│   ├─ test_ingest_extended.py
+│   ├─ test_pooling.py
+│   ├─ test_post.py
+│   ├─ test_post_ordering.py
+│   ├─ test_retrieval.py
+│   ├─ test_retrieval_utils.py
+│   └─ test_integration_openai.py
 │
+├─ config.yaml            # Default configuration
+├─ pyproject.toml         # Package configuration
 └─ requirements.txt       # Dependencies
 ```
 
@@ -100,14 +112,12 @@ decayrag/
 
 | Phase | Milestone / Function                                                      | Status |
 | ----- | ------------------------------------------------------------------------- | ------ |
-| **0** | Vector‑store config (`config.yaml`)                                       | ⬜️     |
+| **0** | Vector‑store config (`config.yaml`)                                       | ✅     |
 | **1** | `parse_document`, `chunk_nodes`, `embed_chunks`, `upsert_embeddings`      | ✅     |
 | **2** | `embed_query`, `compute_chunk_similarities`, `top_k_chunks`, `retrieve()` | ✅     |
-| **3** | `assemble_context`, `generate_answer`                                     | ⬜️     |
+| **3** | `assemble_context`, `generate_answer`                                     | ✅     |
 | **4** | Eval harness, baselines, sweeps                                           | ⬜️     |
 | **5** | Docs, packaging, CI, license                                              | ⬜️     |
-
-*(Live Kanban coming soon.)*
 
 ---
 
@@ -203,7 +213,7 @@ pytest -m integration
 
 | Date | Command | Environment | Result | Notes |
 | ---- | ------- | ----------- | ------ | ----- |
-| 2025-12-27 | `pytest` | local | 16 passed, 1 skipped | Integration skipped (RUN_OPENAI_INTEGRATION not set). |
+| 2025-12-27 | `pytest` | local | 84 passed, 1 skipped | Integration skipped (RUN_OPENAI_INTEGRATION not set). |
 
 ---
 
@@ -267,7 +277,7 @@ Open an issue or pull request on GitHub. Join the discussion tab for questions a
 
 | Phase                           | Milestone / Task                                                                                     | Module / Function                                     | Status                |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------- |
-| **0  Infrastructure**           | Pick vector store (FAISS / LanceDB) & config file schema                                             | `config.yaml`                                         | ⬜️                    |
+| **0  Infrastructure**           | Pick vector store (FAISS / LanceDB) & config file schema                                             | `config.yaml`                                         | ✅                    |
 | **1  Document ingestion**       | **1.1 Hierarchy-aware parser** – walk files, capture *book → chapter → section → paragraph* metadata | `parse_document(path) → List[Node]`                   | ✅                     |
 |                                 | **1.2 Chunker** – break text into tokens ≤ max\_len while respecting hierarchy & sentence boundaries | `chunk_nodes(nodes, max_tokens, overlap=0)`           | ✅                     |
 |                                 | **1.3 Chunk embedding** – batch-call chosen model (OpenAI, GTE, etc.,sentence-transformer)           | `embed_chunks(chunks, model_id) → np.ndarray`         | ✅                     |
@@ -281,15 +291,15 @@ Open an issue or pull request on GitHub. Join the discussion tab for questions a
 |                                 | **2.5 Final score builder** – if you choose score-space blending instead                             | `blend_scores(...)`                                   | ✅                    |
 |                                 | **2.6 Top-k selector**                                                                               | `top_k_chunks(scores, k)`                             | ✅                    |
 |                                 | **2.7 Retrieval wrapper** – orchestrates 2.1 → 2.6                                                   | `retrieve(query, k, settings) → List[Chunk]`          | ✅                    |
-| **3  Post-retrieval**           | **3.1 Context assembly** – stitch neighbouring text, respect hierarchy                               | `assemble_context(chunks, window)`                    | ⬜️                    |
-|                                 | **3.2 Generator call** – feed assembled context to LLM                                               | `generate_answer(context, query)`                     | ⬜️                    |
+| **3  Post-retrieval**           | **3.1 Context assembly** – stitch neighbouring text, respect hierarchy                               | `assemble_context(chunks, window)`                    | ✅                    |
+|                                 | **3.2 Generator call** – feed assembled context to LLM                                               | `generate_answer(context, query)`                     | ✅                    |
 | **4  Evaluation & Experiments** | **4.1 Gap-challenge dataset builder**                                                                | `build_gap_set(corpus)`                               | ⬜️                    |
 |                                 | **4.2 Metrics harness** – Recall\@k, MRR, EM                                                         | `evaluate(run_cfg)`                                   | ⬜️                    |
 |                                 | **4.3 Baseline runners** – Sentence Window, Late-Chunk, etc.                                         | scripts                                               | ⬜️                    |
 |                                 | **4.4 Parameter sweep** – α/β/γ & decay params                                                       | `sweep.py`                                            | ⬜️                    |
-| **5  Tooling & Release**        | **5.1 Unit tests / CI**                                                                              | `tests/` + GH Actions                                 | ⬜️                    |
-|                                 | **5.2 Docs & README** – quick-start, API, diagram                                                    | `docs/`                                               | ⬜️                    |
-|                                 | **5.3 Packaging** – `setup.cfg`, upload to PyPI `decayrag`                                           | v0.1.0                                                | ⬜️                    |
-|                                 | **5.4 License & paper draft**                                                                        | MIT/Apache-2.0 + arXiv template                       | ⬜️                    |
+| **5  Tooling & Release**        | **5.1 Unit tests / CI**                                                                              | `tests/` + GH Actions                                 | ✅                    |
+|                                 | **5.2 Docs & README** – quick-start, API, diagram                                                    | `docs/`                                               | ✅                    |
+|                                 | **5.3 Packaging** – `pyproject.toml`, upload to PyPI `decayrag`                                      | v0.1.0                                                | ✅                    |
+|                                 | **5.4 License & paper draft**                                                                        | MIT/Apache-2.0 + arXiv template                       | ✅                    |
 
 **Legend:** ✅ done | ⬜️ open

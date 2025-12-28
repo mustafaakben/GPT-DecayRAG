@@ -1,0 +1,23 @@
+Distance Decay Kernels in DecayRAG
+
+DecayRAG supports three types of distance-decay kernels that control how neighboring chunks influence each other.
+
+Exponential Decay
+
+The exponential decay kernel uses the formula w(d) = exp(-d/tau), where d is the distance between chunks and tau is the decay parameter. This kernel provides a smooth, continuous decay that is commonly used in spatial analysis. When tau is larger, the influence extends further.
+
+Gaussian Decay
+
+The Gaussian decay kernel uses w(d) = exp(-d^2 / 2*sigma^2), where sigma controls the spread. This kernel creates a bell-shaped curve of influence, with chunks closer together having much stronger connections than those further apart. It provides a softer cutoff than exponential decay.
+
+Power-Law Decay
+
+The power-law kernel uses w(d) = 1/(1+d)^alpha, where alpha controls the steepness. This kernel has a heavier tail than exponential or Gaussian, meaning distant chunks retain more influence. It is useful when long-range dependencies are important.
+
+Automatic Parameter Scaling
+
+By default, DecayRAG sets the decay parameter to N/10, where N is the number of chunks in the document. This means short documents have tighter neighborhoods while long documents allow broader context sharing. Users can override these defaults if needed.
+
+Normalization
+
+After applying decay weights, the system normalizes them so they sum to 1 for each chunk. This ensures consistent blending regardless of document length or decay function choice.

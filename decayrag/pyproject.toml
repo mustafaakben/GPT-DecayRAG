@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decayrag"
+version = "0.1.0"
+description = "Distance-decay, order-aware retrieval-augmented generation pipeline for long, hierarchical documents"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Mustafa Akben", email = "mustafa@example.com"}
+]
+keywords = ["rag", "retrieval", "embeddings", "nlp", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "scikit-learn>=1.0.0",
+    "faiss-cpu>=1.7.0",
+    "pdfminer.six>=20221105",
+    "tiktoken>=0.5.0",
+    "openai>=1.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "python-dotenv>=1.0.0",
+]
+sentence-transformers = [
+    "transformers>=4.30.0",
+    "sentence-transformers>=2.2.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/mustafaakben/DecayRAG"
+Repository = "https://github.com/mustafaakben/DecayRAG"
+Issues = "https://github.com/mustafaakben/DecayRAG/issues"
+
+[project.scripts]
+decayrag-ingest = "decayrag.ingest:_cli_main"
+decayrag-answer = "decayrag.post:_run_cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["decayrag*"]
+
+[tool.pytest.ini_options]
+testpaths = ["../tests"]
+markers = [
+    "integration: tests that call external services",
+]

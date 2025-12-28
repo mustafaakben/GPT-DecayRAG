@@ -1,3 +1,10 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.vscode/
+.env
+.idea/
+data/
+*.faiss
+*.faiss.meta
+*.faiss.npy

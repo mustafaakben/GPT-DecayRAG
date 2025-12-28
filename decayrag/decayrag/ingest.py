@@ -388,3 +388,39 @@ def batch_ingest_from_config(
         settings["overlap"],
     )
     return settings
+
+
+def _cli_main() -> None:
+    """CLI entry point for batch ingestion."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Ingest documents into a FAISS index")
+    parser.add_argument("input", help="Input folder containing documents")
+    parser.add_argument("index", nargs="?", default=None, help="Output FAISS index path")
+    parser.add_argument("--model", default=None, help="Embedding model name")
+    parser.add_argument("--max_tokens", type=int, default=None)
+    parser.add_argument("--overlap", type=int, default=None)
+    parser.add_argument("--config", help="Path to config.yaml", default=None)
+    args = parser.parse_args()
+
+    settings = resolve_ingest_settings(
+        args.config,
+        index_path=args.index,
+        model_name=args.model,
+        max_tokens=args.max_tokens,
+        overlap=args.overlap,
+    )
+
+    Path(settings["index_path"]).parent.mkdir(parents=True, exist_ok=True)
+    batch_ingest(
+        args.input,
+        settings["index_path"],
+        settings["model_name"],
+        settings["max_tokens"],
+        settings["overlap"],
+    )
+    print(f"Index written to {settings['index_path']}")
+
+
+if __name__ == "__main__":
+    _cli_main()
